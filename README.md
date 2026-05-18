@@ -1,17 +1,16 @@
 # 🚀 AtomQuest 1.0 — Goal Setting & Tracking Portal
 
-[
-[
-[
-[
-[
-[
+[![React](https://img.shields.io/badge/React-19.2-0F8B83?style=for-the-badge&logo=react)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?style=for-the-badge&logo=vite)](https://vitejs.dev)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind-v4-38bdf8?style=for-the-badge&logo=tailwind-css)](https://tailwindcss.com)
+[![React Router](https://img.shields.io/badge/React_Router-v7-CA4245?style=for-the-badge&logo=react-router)](https://reactrouter.com)
+[![Socket.io](https://img.shields.io/badge/Realtime-Socket.io_v4-010101?style=for-the-badge&logo=socket.io)](https://socket.io)
 
 AtomQuest is a premium, enterprise-grade **In-House Goal Setting & Tracking Portal** designed for **Atomberg**. It delivers three fully isolated user journeys — Employee, L1 Manager, and Admin/HR — covering goal sheet creation, compliance enforcement, quarterly check-in logging, visual performance dashboards, and real-time escalation alerts. Every BRD requirement, including all bonus features, has been implemented.
 
 > **Hackathon:** Atomberg Hackathon 1.0 | **Frontend:** React 19 + Tailwind v4 + Vite 8
 
-***
+---
 
 ## 📁 Repository Structure
 
@@ -98,10 +97,10 @@ atomquest-frontend/
             ├── Analytics.jsx         # QoQ SVG line graph + dept heatmap + redlines
             ├── AuditLogs.jsx         # Full immutable action history with filters
             ├── EscalationLogs.jsx    # Escalation rule builder + cron log viewer
-            └── Reports.jsx           # CSV export of achievements and audit trails
+            └── Reports.jsx           # CSV/XLSX export of achievements and audit trails
 ```
 
-***
+---
 
 ## 🏗️ Frontend Architecture
 
@@ -154,7 +153,7 @@ graph TD
         Y[AuditLogs.jsx]
         Z[EscalationLogs.jsx\nRule Builder + Cron Logs]
         AA[GoalSheetsAdmin.jsx\nGlobal Override View]
-        BB[Reports.jsx\nCSV Export]
+        BB[Reports.jsx\nCSV/XLSX Export]
     end
 
     subgraph APILayer ["API Layer src/api/"]
@@ -181,7 +180,7 @@ graph TD
     E -->|Token injection| CC
 ```
 
-***
+---
 
 ## 🔑 Hackathon Sandbox Credentials
 
@@ -196,7 +195,7 @@ All accounts share the password **`password123`** and are seeded in the live Neo
 | **Aarav Mehta** | `MANAGER` | Engineering | `aarav@atomberg.com` | L1 Manager for Engineering |
 | **Nisha Rao** | `MANAGER` | Sales | `nisha@atomberg.com` | L1 Manager for Sales |
 
-***
+---
 
 ## ⚡ Feature Implementation
 
@@ -211,9 +210,9 @@ All accounts share the password **`password123`** and are seeded in the live Neo
 
 **`SharedGoals.jsx`** — Managers can broadcast departmental KPIs to multiple employees at once. The title and target fields on shared goals are read-only for recipients; only weightage is adjustable. Achievement updates on shared goals propagate automatically to all linked employee sheets.
 
-**`MyGoals.jsx`** — Employees track their complete goal history. Displays submission status, manager approval state, and computed progress scores per goal with colour-coded indicators.
+**`MyGoals.jsx`** — Employees track their complete goal history. Displays submission status, manager approval state, and computed progress scores per goal with colour-coded indicators. Clicking any goal opens a **full-detail modal** (`GoalDetailsModal.jsx`) showing the goal title, thrust area, UoM type, target, current achievement, weightage, progress score, and check-in history — all in a structured overlay without leaving the page.
 
-***
+---
 
 ### Phase 2 — Quarterly Check-ins & Achievement Tracking
 
@@ -230,7 +229,7 @@ All accounts share the password **`password123`** and are seeded in the live Neo
 
 **`CheckinReview.jsx`** — Managers review planned vs. actual achievements for each team member side-by-side and attach structured feedback comments. Every comment fires a real-time socket notification to the employee.
 
-***
+---
 
 ### Bonus Features
 
@@ -254,11 +253,106 @@ The most feature-rich page in the portal. Contains:
 
 A complete, immutable action history with search and filter support. Every state-changing event (goal submission, approval, return, check-in, escalation, admin override) is logged with actor, target, action type, and timestamp. Exportable to CSV via `reportsApi.js`.
 
-#### 👥 User & Cycle Management — `UsersManagement.jsx` + `CycleManagement.jsx`
+---
 
-Admins can create and manage employee/manager accounts, assign reporting lines, and configure goal cycle windows. `CycleManagement.jsx` allows unlocking or extending specific check-in windows and granting individual exceptions without disrupting the global cycle.
+### 👥 User Management — `UsersManagement.jsx`
 
-***
+**Route:** `/admin/users` | **Role:** ADMIN only
+
+A full organisational directory and user lifecycle management panel. The page opens with a live summary bar showing total user count broken down by role — Employees, Managers, and Admins — then lists every user in a searchable, filterable table.
+
+**Table columns:** Avatar initial, Full Name + email, Role badge, Department, Assigned Manager (employees only), Join Date, Active/Suspended status, and action buttons.
+
+**Filter tabs** at the top let the admin instantly scope the view to `All`, `EMPLOYEE`, `MANAGER`, or `ADMIN`. The search bar filters by name or email in real time.
+
+**Per-user actions:**
+- **Add User** — opens a creation form for name, email, role, department, and manager assignment
+- **Suspend / Reactivate** — toggles the user's active status without deleting their data
+- **Remove** — permanently deletes the user after confirmation
+
+The live sandbox shows 6 seeded users across 3 roles:
+
+| User | Role | Department | Manager |
+| :--- | :--- | :--- | :--- |
+| Admin HR | ADMIN | HR | — |
+| Rajesh Kumar | MANAGER | Sales | — |
+| Nisha Rao | MANAGER | Sales | — |
+| Aarav Mehta | MANAGER | Engineering | — |
+| Priya Sharma | EMPLOYEE | Sales | Rajesh Kumar |
+| Manoj Gaur | EMPLOYEE | Engineering | Rajesh Kumar |
+
+---
+
+### 🗂️ Goal Sheets Management — `GoalSheetsAdmin.jsx`
+
+**Route:** `/admin/goal-sheets` | **Role:** ADMIN only
+
+A global command centre for all employee goal sheets across the organisation. Admins can view, edit targets, approve, return, or unlock any sheet regardless of its current owner or status — the override capability that separates admin power from the regular manager flow.
+
+**Status filter tabs:** `ALL`, `SUBMITTED`, `APPROVED`, `RETURNED`, `DRAFT` — each showing a live count badge.
+
+**Table columns:** Employee name + email, Department, Cycle (e.g. *FY 2026-27*), Sheet status badge, Submission date, Lock indicator (🔒 Locked / 🔓 Open), and action buttons.
+
+**Per-sheet actions:**
+- **View & Edit** — opens the sheet inline with full goal editing capability, even on approved/locked sheets
+- **Unlock** — releases a locked approved sheet back to EDITABLE status and sends an email to the employee notifying them of the modification window
+- Sheets in SUBMITTED status show an **Approve / Return** split action
+
+This is the primary exception-handling interface — when an employee needs to amend an already-approved sheet mid-cycle, the admin uses this page to grant the unlock without resetting the entire cycle.
+
+---
+
+### 👤 Team Members — `TeamMembers.jsx`
+
+**Route:** `/manager/team-members` | **Role:** MANAGER only
+
+A rich employee directory scoped to the logged-in manager's direct reports. The page combines search, multi-dimensional filtering, and a detailed drill-down profile modal into a single cohesive interface.
+
+**Filters available simultaneously:**
+- Department dropdown (Engineering, Sales, Product, Design, Marketing, HR, Finance, Operations)
+- Sheet Status (DRAFT / SUBMITTED / APPROVED / RETURNED)
+- Goal Status (Has Completed Goals / Has On Track Goals / Has Not Started Goals)
+
+**Table columns:** Employee name + email, Department, Goal count, Overall progress % with a colour-coded bar, Sheet status badge, Last check-in summary, and a **View Profile** button.
+
+#### Employee Profile Modal — 5-Tab Deep Dive
+
+Clicking **View Profile** opens a full-screen overlay with the employee's name, email, and department in the header, and five tabs:
+
+| Tab | Icon | What it shows |
+| :--- | :--- | :--- |
+| **Goals** | `my_location` | All approved goals with UoM, target, current achievement, weightage, and computed progress score per goal |
+| **Check-ins** | `fact_check` | Quarter-by-quarter check-in history — planned vs. actual values, status, and submission timestamp |
+| **Feedback History** | `rate_review` | Chronological log of all manager comments added during check-in reviews |
+| **Shared KPIs** | `sync` | Goals that were pushed to this employee via the Shared Goals broadcast — with read-only target fields |
+| **Activity Log** | `history` | Full audit trail scoped to this employee: every submission, approval, return, check-in, and comment event |
+
+---
+
+### 📊 Reports Library — `Reports.jsx`
+
+**Route:** `/admin/reports` | **Role:** ADMIN only
+
+A structured export centre for organisational analytics and review cycle data. Three distinct report types are available, each with tailored export formats:
+
+#### 1. Achievement Report
+Covers individual and team goal completions, over-achievements, and key milestones met during the cycle. Exports bundled with check-in data.
+- **Export format:** XLSX (Excel) — structured spreadsheet with one row per goal per employee
+- **Use case:** HR quarterly reviews, performance rating inputs, board-level reporting
+
+#### 2. Completion Dashboard
+Status tracking for ongoing review cycles. Identifies departments and employees with incomplete or approved goal sheets — useful for compliance enforcement before cycle close.
+- **Export format:** CSV — lightweight, importable into any BI tool
+- **Use case:** Cycle health monitoring, nudging laggards, compliance snapshots
+
+#### 3. Manager Effectiveness Report
+Aggregated metrics on manager performance: number of sheets reviewed and approved, check-in comments logged per manager, and average review turnaround time.
+- **Export format:** Opens in a dedicated in-portal view (`visibilityView in Page`) with a full table breakdown, plus a CSV export option
+- **Use case:** HR calibration of manager engagement, escalation pre-screening, 360° feedback input
+
+All exports are triggered client-side via `reportsApi.js` and downloaded directly from the browser without a separate download page.
+
+---
 
 ## 🛣️ Route Map
 
@@ -287,7 +381,7 @@ Admins can create and manage employee/manager accounts, assign reporting lines, 
 
 Unmatched routes and `/` redirect to `/login` via `<Navigate replace />`.
 
-***
+---
 
 ## 🧰 Tech Stack
 
@@ -306,7 +400,7 @@ Unmatched routes and `/` redirect to `/login` via `<Navigate replace />`.
 | Notifications | React Hot Toast | 2.6 |
 | Styling Utilities | clsx + tailwind-merge | 2.1 / 3.6 |
 
-***
+---
 
 ## 🚀 Local Setup
 
@@ -344,7 +438,7 @@ npm run build
 npm run preview
 ```
 
-***
+---
 
 ## 📧 Email Notification Testing
 
@@ -352,14 +446,14 @@ The sandbox emails (`admin@atomberg.com`, `priya@atomberg.com`, etc.) are corpor
 
 | Trigger | Email Preview |
 |---|---|
-| 📋 Goal sheet submitted → manager notified |  |
-| ✅ Goal sheet approved → employee notified |  |
-| 🔄 Goal sheet returned → employee notified | — *(return email sent; screenshot in escalation logs)* |
-| 🔓 Modification approved → employee notified |  |
-| 💬 Check-in comment added → employee notified |  |
-| 📝 Check-in submitted → manager notified |  |
+| 📋 Goal sheet submitted → manager notified | ![Goal Sheet Submitted](./screenshots/goal-submitted.jpg) |
+| ✅ Goal sheet approved → employee notified | ![Goal Sheet Approved](./screenshots/goal-approved.jpg) |
+| 🔄 Goal sheet returned → employee notified | — *(return email triggered; visible in backend logs)* |
+| 🔓 Modification approved → employee notified | ![Modification Approved](./screenshots/modification-approved.jpg) |
+| 💬 Check-in comment added → employee notified | ![Check-in Comment](./screenshots/checkin-comment.jpg) |
+| 📝 Check-in submitted → manager notified | ![Check-in Submitted](./screenshots/checkin-submitted.jpg) |
 
-***
+---
 
 ## 🏆 Quality Highlights
 
@@ -367,11 +461,10 @@ The sandbox emails (`admin@atomberg.com`, `priya@atomberg.com`, etc.) are corpor
 - **Role-Based Route Guards** — `ProtectedRoute.jsx` rejects navigation at the React Router level before any component mounts, preventing unauthorized page access entirely
 - **Separation of API Concerns** — 8 domain-scoped API modules (`authApi`, `goalsApi`, `checkinApi`, `managerApi`, `adminApi`, `analyticsApi`, `reportsApi`, `axios`) with a single Axios instance handling JWT injection via request interceptors
 - **Zero State Leaks** — `useSocket.js` registers event listeners with `useEffect` cleanup, ensuring subscriptions are torn down when components unmount
-- **Client-Side CSV Exports** — Achievement lists and audit trails export directly from the browser, conserving backend resources
+- **Client-Side Exports** — Achievement reports (XLSX), completion dashboards (CSV), and audit trails export directly from the browser via `reportsApi.js`
 - **Form Validation** — React Hook Form + Zod schemas enforce type-safe input constraints before any API call is made
+- **Deep Employee Profiling** — The 5-tab `TeamMembers` profile modal gives managers a complete 360° view of any direct report (goals, check-ins, feedback, shared KPIs, activity log) without leaving the page
 
-***
+---
 
 *Built for Atomberg Hackathon 1.0 — by **Samarth Nagpal**.*
-
-***
