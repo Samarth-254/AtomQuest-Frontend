@@ -448,7 +448,6 @@ The sandbox emails (`admin@atomberg.com`, `priya@atomberg.com`, etc.) are corpor
 |---|---|
 | 📋 Goal sheet submitted → manager notified | ![Goal Sheet Submitted](./screenshots/goal-submitted.jpg) |
 | ✅ Goal sheet approved → employee notified | ![Goal Sheet Approved](./screenshots/goal-approved.jpg) |
-| 🔄 Goal sheet returned → employee notified | — *(return email triggered; visible in backend logs)* |
 | 🔓 Modification approved → employee notified | ![Modification Approved](./screenshots/modification-approved.jpg) |
 | 💬 Check-in comment added → employee notified | ![Check-in Comment](./screenshots/checkin-comment.jpg) |
 | 📝 Check-in submitted → manager notified | ![Check-in Submitted](./screenshots/checkin-submitted.jpg) |
