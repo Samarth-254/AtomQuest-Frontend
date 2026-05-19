@@ -41,7 +41,7 @@ export default function EmployeeDashboard() {
       if (showLoading) setLoading(true);
       const [sheetRes, progressRes] = await Promise.all([
         getMyGoalSheet(),
-        getMyProgress(),
+        getMyProgress({ all: true }),
       ]);
 
       const sheetData = sheetRes.data;
@@ -51,11 +51,21 @@ export default function EmployeeDashboard() {
 
       const map = {};
       (progressRes.data || []).forEach((row) => {
-        if (!map[row.goal_id]) {
-          map[row.goal_id] = row.progress_score ?? 0;
+        const existing = map[row.goal_id];
+        if (!existing) {
+          map[row.goal_id] = { score: row.progress_score ?? 0, checkedAt: row.checked_in_at };
+          return;
+        }
+        const currentTime = row.checked_in_at ? new Date(row.checked_in_at).getTime() : 0;
+        const existingTime = existing.checkedAt ? new Date(existing.checkedAt).getTime() : 0;
+        if (currentTime >= existingTime) {
+          map[row.goal_id] = { score: row.progress_score ?? 0, checkedAt: row.checked_in_at };
         }
       });
-      setProgressMap(map);
+      const scoreMap = Object.fromEntries(
+        Object.entries(map).map(([goalId, meta]) => [goalId, meta.score])
+      );
+      setProgressMap(scoreMap);
       setAllCheckins(progressRes.data || []);
       setError('');
     } catch (err) {

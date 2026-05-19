@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getMyProgress, upsertCheckin } from '../../api/checkinApi';
-import { getMyGoalSheet } from '../../api/goalsApi';
+import { getCycles, getMyGoalSheet } from '../../api/goalsApi';
 import toast from 'react-hot-toast';
 
 const statusOptions = ['NOT_STARTED', 'ON_TRACK', 'COMPLETED'];
@@ -29,25 +29,56 @@ export default function CheckinPage() {
   const [goals, setGoals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [cyclePhase, setCyclePhase] = useState('Q1');
+  const [cyclePhase, setCyclePhase] = useState('');
+  const [activeCyclePhase, setActiveCyclePhase] = useState('');
+  const [activeCheckinPhase, setActiveCheckinPhase] = useState('');
+  const [activeCycleName, setActiveCycleName] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
+    const loadCycles = async () => {
+      try {
+        const cycleRes = await getCycles();
+        if (!isMounted) return;
+        const cycleList = cycleRes.data || [];
+        const active = cycleList.find((item) => item.is_active) || null;
+        const phase = active?.phase || '';
+        const isQuarterPhase = ['Q1', 'Q2', 'Q3', 'Q4'].includes(phase);
+        const checkinPhase = isQuarterPhase ? phase : '';
+        setActiveCyclePhase(phase);
+        setActiveCheckinPhase(checkinPhase);
+        setActiveCycleName(active?.cycle_name || '');
+        setCyclePhase((prev) => prev || checkinPhase || 'Q1');
+      } catch (err) {
+        if (isMounted) {
+          setActiveCyclePhase('');
+          setActiveCheckinPhase('');
+          setCyclePhase((prev) => prev || 'Q1');
+        }
+      }
+    };
+
+    loadCycles();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
     const load = async () => {
+      if (!cyclePhase) return;
       try {
         setLoading(true);
         const [progressRes, sheetRes] = await Promise.all([
-          getMyProgress(),
+          getMyProgress({ cyclePhase }),
           getMyGoalSheet(),
         ]);
 
         if (!isMounted) return;
-
-        // NOTE: cyclePhase for check-ins is always Q1/Q2/Q3/Q4 (quarterly)
-        // NOT the goal cycle's lifecycle phase (GOAL_SETTING, REVIEW, etc.)
-        // User picks the correct quarter from the dropdown above.
 
         const rows = progressRes.data || [];
         setGoals(
@@ -66,6 +97,7 @@ export default function CheckinPage() {
             actualDate: row.actual_date ? row.actual_date.split('T')[0] : '',
           }))
         );
+        setError('');
       } catch (err) {
         if (isMounted) {
           setError('Failed to load check-ins.');
@@ -81,7 +113,7 @@ export default function CheckinPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [cyclePhase]);
 
   const updateGoal = (id, field, value) => {
     setGoals((prev) =>
@@ -105,7 +137,14 @@ export default function CheckinPage() {
     );
   };
 
+  const isCurrentPhase = !!activeCheckinPhase && cyclePhase === activeCheckinPhase;
+  const isReadOnly = !isCurrentPhase;
+
   const handleSubmit = async () => {
+    if (!isCurrentPhase) {
+      toast.error('Check-ins are read-only for past phases.');
+      return;
+    }
     if (submitting) return;
     setSubmitting(true);
     try {
@@ -144,6 +183,11 @@ export default function CheckinPage() {
           <p className="text-[14px] leading-[20px] text-[#3d4947] mt-2">
             Record your actual achievements against your quarterly objectives.
           </p>
+          {activeCyclePhase && (
+            <p className="text-[12px] leading-[18px] text-[#6b7280] mt-2">
+              Current phase: {activeCyclePhase}{activeCycleName ? ` · ${activeCycleName}` : ''}
+            </p>
+          )}
         </div>
 
         <div className="shrink-0 border border-[#d9e3e4] bg-white rounded-[8px] px-5 py-4 flex items-center gap-3">
@@ -164,6 +208,12 @@ export default function CheckinPage() {
           </select>
         </div>
       </div>
+
+      {isReadOnly && cyclePhase && (
+        <div className="mb-6 px-4 py-3 rounded-[8px] border border-[#f1d0d0] bg-[#fff5f5] text-[13px] text-[#8b1e1e]">
+          Viewing {cyclePhase} check-ins. Editing is disabled because this is not the current phase.
+        </div>
+      )}
 
       <div className="border-t border-[#edeeef] pt-8 space-y-6">
         {loading && (
@@ -240,11 +290,12 @@ export default function CheckinPage() {
                         key={option}
                         type="button"
                         onClick={() => updateGoal(goal.id, 'status', option)}
+                        disabled={isReadOnly}
                         className={`w-full h-10 rounded-[6px] border px-4 flex items-center gap-3 text-[14px] transition-colors ${
                           active
                             ? 'border-[#00685f] bg-[#e7f4f2] text-[#191c1d]'
                             : 'border-[#d9e3e4] bg-white text-[#191c1d] hover:bg-[#f8f9fa]'
-                        }`}
+                        } ${isReadOnly ? 'opacity-60 cursor-not-allowed' : ''}`}
                       >
                         <span
                           className={`w-5 h-5 rounded-full border flex items-center justify-center ${
@@ -277,6 +328,7 @@ export default function CheckinPage() {
                   onChange={(e) =>
                     updateGoal(goal.id, 'achievement', e.target.value)
                   }
+                  disabled={isReadOnly}
                   className="w-full px-4 py-3 border border-[#d9e3e4] rounded-[6px] bg-white text-[14px] leading-[22px] text-[#191c1d] placeholder:text-[#3d4947]/40 focus:outline-none focus:border-[#00685f] focus:ring-1 focus:ring-[#00685f] transition-colors resize-none"
                 />
 
@@ -291,6 +343,7 @@ export default function CheckinPage() {
                       onChange={(e) =>
                         updateGoal(goal.id, 'actualValue', e.target.value)
                       }
+                      disabled={isReadOnly}
                       className="w-full h-10 px-3 border border-[#d9e3e4] rounded-[6px] bg-white text-[14px] text-[#191c1d] focus:outline-none focus:border-[#00685f] focus:ring-1 focus:ring-[#00685f] transition-colors"
                     />
                   </div>
@@ -305,6 +358,7 @@ export default function CheckinPage() {
                       onChange={(e) =>
                         updateGoal(goal.id, 'actualDate', e.target.value)
                       }
+                      disabled={isReadOnly}
                       className="w-full h-10 px-3 border border-[#d9e3e4] rounded-[6px] bg-white text-[14px] text-[#191c1d] focus:outline-none focus:border-[#00685f] focus:ring-1 focus:ring-[#00685f] transition-colors"
                     />
                   </div>
@@ -328,7 +382,8 @@ export default function CheckinPage() {
                     onChange={(e) =>
                       updateGoal(goal.id, 'progress', Number(e.target.value))
                     }
-                    className="w-full accent-[#00685f] cursor-pointer"
+                    disabled={isReadOnly}
+                    className={`w-full accent-[#00685f] ${isReadOnly ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                   />
                 </div>
               </div>
@@ -342,7 +397,7 @@ export default function CheckinPage() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || isReadOnly}
           className="h-11 px-6 rounded-[6px] bg-[#00685f] hover:bg-[#005049] text-white text-[14px] font-medium transition-colors flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
         >
           {submitting ? (

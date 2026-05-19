@@ -10,6 +10,8 @@ AtomQuest is a premium, enterprise-grade **In-House Goal Setting & Tracking Port
 
 > **Hackathon:** Atomberg Hackathon 1.0 | **Frontend:** React 19 + Tailwind v4 + Vite 8
 
+> **Demo Note:** Cycle windows are adjusted so Q1 is the current phase for the live demo. All phase enforcement remains active.
+
 ---
 
 ## 📁 Repository Structure
@@ -92,7 +94,7 @@ atomquest-frontend/
         └── admin/
             ├── Dashboard.jsx         # Organisation-wide KPI summary
             ├── UsersManagement.jsx   # Create/manage employees and managers
-            ├── CycleManagement.jsx   # Goal cycle configuration + window unlocks
+            ├── CycleManagement.jsx   # Goal cycle windows (Goal Setting + Q1–Q4)
             ├── GoalSheetsAdmin.jsx   # Global view of all goal sheets + exception overrides
             ├── Analytics.jsx         # QoQ SVG line graph + dept heatmap + redlines
             ├── AuditLogs.jsx         # Full immutable action history with filters
@@ -201,7 +203,7 @@ All accounts share the password **`password123`** and are seeded in the live Neo
 
 ### Phase 1 — Goal Creation & Approval
 
-**`GoalSheetBuilder.jsx`** — The core goal authoring interface. Employees select from predefined Thrust Areas (e.g. Sales Revenue, Operational Excellence, TAT Reduction), set a title, description, UoM type, and target value. The form enforces three hard rules before allowing submission:
+**`GoalSheetBuilder.jsx`** — The core goal authoring interface. Employees select from predefined Thrust Areas (e.g. Sales Revenue, Operational Excellence, TAT Reduction), set a title, description, UoM type, and target value. Goal creation is only permitted during the **Goal Setting** window. The form enforces three hard rules before allowing submission:
 - Total weightage across all goals must equal exactly **100%**
 - Minimum weightage per individual goal is **10%**
 - A maximum of **8 goals** can exist per cycle

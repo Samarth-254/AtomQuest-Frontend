@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { listTeamSheets, getSheetDetails, getTeamCheckins, addCheckinComment } from '../../api/managerApi';
+import { getCycles } from '../../api/goalsApi';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -29,6 +30,9 @@ export default function TeamMembers() {
   const [drawerGoals, setDrawerGoals] = useState([]);
   const [drawerCheckins, setDrawerCheckins] = useState([]);
   const [activeTab, setActiveTab] = useState('goals');
+  const [activeCyclePhase, setActiveCyclePhase] = useState('');
+  const [activeCheckinPhase, setActiveCheckinPhase] = useState('');
+  const [selectedCheckinPhase, setSelectedCheckinPhase] = useState('');
 
   // Inline Comment states
   const [commentingCheckinId, setCommentingCheckinId] = useState(null);
@@ -52,6 +56,33 @@ export default function TeamMembers() {
   useEffect(() => {
     loadSheets(true);
   }, [loadSheets]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadCycles = async () => {
+      try {
+        const cycleRes = await getCycles();
+        if (!isMounted) return;
+        const cycleList = cycleRes.data || [];
+        const active = cycleList.find((item) => item.is_active) || null;
+        const cyclePhase = active?.phase || '';
+        const isQuarterPhase = ['Q1', 'Q2', 'Q3', 'Q4'].includes(cyclePhase);
+        setActiveCyclePhase(cyclePhase);
+        setActiveCheckinPhase(isQuarterPhase ? cyclePhase : '');
+      } catch (err) {
+        if (isMounted) {
+          setActiveCyclePhase('');
+          setActiveCheckinPhase('');
+        }
+      }
+    };
+
+    loadCycles();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleSocketEvent = (e) => {
@@ -79,6 +110,7 @@ export default function TeamMembers() {
   const handleOpenDrawer = async (sheet) => {
     setSelectedSheet(sheet);
     setActiveTab('goals');
+    setSelectedCheckinPhase((prev) => prev || activeCheckinPhase || 'Q1');
     if (!sheet.id) {
       setDrawerGoals([]);
       setDrawerCheckins([]);
@@ -143,6 +175,15 @@ export default function TeamMembers() {
       return matchesSearch && matchesDept && matchesStatus && matchesGoalStatus;
     });
   }, [sheets, searchQuery, selectedDept, selectedStatus, selectedGoalStatus]);
+
+  const filteredCheckins = useMemo(() => {
+    if (!selectedCheckinPhase || selectedCheckinPhase === 'ALL') {
+      return drawerCheckins.filter((c) => c.cycle_phase);
+    }
+    return drawerCheckins.filter((c) => c.cycle_phase === selectedCheckinPhase);
+  }, [drawerCheckins, selectedCheckinPhase]);
+
+  const canComment = !!activeCheckinPhase && selectedCheckinPhase === activeCheckinPhase;
 
   return (
     <div className="max-w-[1240px] space-y-6">
@@ -409,9 +450,35 @@ export default function TeamMembers() {
                   {/* CHECKINS TAB */}
                   {activeTab === 'checkins' && (
                     <div className="space-y-6">
-                      <h3 className="text-[14px] font-bold text-[#101828]">Timeline Check-ins Review</h3>
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div>
+                          <h3 className="text-[14px] font-bold text-[#101828]">Timeline Check-ins Review</h3>
+                          {activeCyclePhase && (
+                            <p className="text-[12px] text-[#667085] mt-1">Current phase: {activeCyclePhase}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[12px] text-[#667085]">Quarter</span>
+                          <select
+                            value={selectedCheckinPhase}
+                            onChange={(e) => setSelectedCheckinPhase(e.target.value)}
+                            className="h-8 px-2.5 rounded-[6px] border border-[#D0D5DD] text-[12px] text-[#101828]"
+                          >
+                            {['Q1', 'Q2', 'Q3', 'Q4', 'ALL'].map((phase) => (
+                              <option key={phase} value={phase}>
+                                {phase}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      {!canComment && selectedCheckinPhase && (
+                        <div className="px-3 py-2 rounded-[6px] border border-[#f1d0d0] bg-[#fff5f5] text-[12px] text-[#8b1e1e]">
+                          Comments are enabled only for the current phase.
+                        </div>
+                      )}
                       <div className="relative border-l border-[#D0D5DD] ml-3 pl-6 space-y-6">
-                        {drawerCheckins.map((c, idx) => (
+                        {filteredCheckins.map((c, idx) => (
                           <div key={idx} className="relative">
                             {/* Bullet indicator */}
                             <div className="absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white bg-[#006C63] flex items-center justify-center shadow-sm" />
@@ -475,7 +542,7 @@ export default function TeamMembers() {
                                       </button>
                                       <button
                                         onClick={() => handleSaveInlineComment(c)}
-                                        disabled={savingCommentId === c.checkin_id}
+                                        disabled={savingCommentId === c.checkin_id || !canComment}
                                         className="h-7 px-3 bg-[#006C63] text-white rounded-[4px] text-[11px] font-semibold disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-1.5"
                                       >
                                         {savingCommentId === c.checkin_id ? (
@@ -490,10 +557,14 @@ export default function TeamMembers() {
                                 ) : (
                                   <button
                                     onClick={() => {
+                                      if (!canComment) return;
                                       setCommentingCheckinId(c.checkin_id);
                                       setInlineCommentText(c.manager_comment || '');
                                     }}
-                                    className="h-7 px-2.5 rounded-[6px] border border-[#D0D5DD] bg-white hover:bg-[#F9FAFB] text-[11px] font-semibold text-[#344054] flex items-center gap-1 transition-colors"
+                                    disabled={!canComment}
+                                    className={`h-7 px-2.5 rounded-[6px] border border-[#D0D5DD] bg-white text-[11px] font-semibold text-[#344054] flex items-center gap-1 transition-colors ${
+                                      canComment ? 'hover:bg-[#F9FAFB]' : 'opacity-60 cursor-not-allowed'
+                                    }`}
                                   >
                                     <span className="material-symbols-outlined text-[14px]">edit</span>
                                     {c.manager_comment ? 'Edit Comment' : 'Add Comment'}
@@ -503,7 +574,7 @@ export default function TeamMembers() {
                             </div>
                           </div>
                         ))}
-                        {drawerCheckins.length === 0 && (
+                        {filteredCheckins.length === 0 && (
                           <div className="text-center py-10 pl-0 -ml-6">
                             <span className="material-symbols-outlined text-[36px] text-[#D0D5DD]">checklist</span>
                             <p className="text-[13px] text-[#667085] mt-2">No check-ins submitted for this sheet yet.</p>

@@ -49,13 +49,27 @@ export default function MyGoals() {
     try {
       const [sheetRes, progressRes] = await Promise.all([
         getMyGoalSheet(),
-        getMyProgress(),
+        getMyProgress({ all: true }),
       ]);
       setSheetStatus(sheetRes.data.sheet?.status || '');
       setGoals(sheetRes.data.goals || []);
       const map = {};
-      (progressRes.data || []).forEach(row => { map[row.goal_id] = row.progress_score ?? 0; });
-      setProgressMap(map);
+      (progressRes.data || []).forEach((row) => {
+        const existing = map[row.goal_id];
+        if (!existing) {
+          map[row.goal_id] = { score: row.progress_score ?? 0, checkedAt: row.checked_in_at };
+          return;
+        }
+        const currentTime = row.checked_in_at ? new Date(row.checked_in_at).getTime() : 0;
+        const existingTime = existing.checkedAt ? new Date(existing.checkedAt).getTime() : 0;
+        if (currentTime >= existingTime) {
+          map[row.goal_id] = { score: row.progress_score ?? 0, checkedAt: row.checked_in_at };
+        }
+      });
+      const scoreMap = Object.fromEntries(
+        Object.entries(map).map(([goalId, meta]) => [goalId, meta.score])
+      );
+      setProgressMap(scoreMap);
       setAllCheckins(progressRes.data || []);
     } catch {
       setError('Failed to load goals.');

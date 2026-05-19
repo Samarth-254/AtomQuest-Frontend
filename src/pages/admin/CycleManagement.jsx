@@ -25,7 +25,22 @@ function StageMarker({ stage, position }) {
   );
 }
 
-const initialForm = { cycleName: "", phase: "", windowOpen: "", windowClose: "", isActive: true };
+const phaseLabels = [
+  { key: 'GOAL_SETTING', label: 'Goal Setting' },
+  { key: 'Q1', label: 'Q1 Check-in' },
+  { key: 'Q2', label: 'Q2 Check-in' },
+  { key: 'Q3', label: 'Q3 Check-in' },
+  { key: 'Q4', label: 'Q4 / Annual' },
+];
+
+const initialForm = {
+  cycleName: "",
+  isActive: true,
+  windows: phaseLabels.reduce((acc, phase) => {
+    acc[phase.key] = { windowOpen: "", windowClose: "" };
+    return acc;
+  }, {}),
+};
 
 export default function CycleManagement() {
   const navigate = useNavigate();
@@ -59,17 +74,15 @@ export default function CycleManagement() {
 
   const stages = useMemo(() => {
     if (!activeCycle) return [];
-    const openDate = new Date(activeCycle.window_open);
-    const closeDate = new Date(activeCycle.window_close);
-    const midDate = new Date((openDate.getTime() + closeDate.getTime()) / 2);
-    const now = new Date();
-    return [
-      { label: "Window Open",  sublabel: formatDate(openDate),  active: now >= openDate,  complete: now > openDate  },
-      { label: "Midpoint",     sublabel: formatDate(midDate),   active: now >= midDate,   complete: now > midDate   },
-      { label: "Window Close", sublabel: formatDate(closeDate), active: now >= closeDate, complete: now > closeDate },
-      { label: activeCycle.is_active ? "Active" : "Locked", sublabel: activeCycle.phase,
-        active: activeCycle.is_active, complete: !activeCycle.is_active },
-    ];
+    return (activeCycle.windows || []).map((w) => {
+      const now = new Date();
+      return {
+        label: w.phase,
+        sublabel: `${formatDate(w.window_open)} → ${formatDate(w.window_close)}`,
+        active: now >= new Date(w.window_open),
+        complete: now > new Date(w.window_close)
+      };
+    });
   }, [activeCycle]);
 
   const handleSubmit = async (e) => {
@@ -77,7 +90,16 @@ export default function CycleManagement() {
     setSaveError("");
     setSaving(true);
     try {
-      await createCycle(form);
+      const windows = Object.entries(form.windows).map(([phase, value]) => ({
+        phase,
+        windowOpen: value.windowOpen,
+        windowClose: value.windowClose
+      }));
+      await createCycle({
+        cycleName: form.cycleName,
+        isActive: form.isActive,
+        windows
+      });
       setShowModal(false);
       setForm(initialForm);
       showToast(`Cycle "${form.cycleName}" created successfully!`);
@@ -181,7 +203,7 @@ export default function CycleManagement() {
                     {activeCycle?.cycle_name || "No active cycle"}
                   </h2>
                   <p className="text-[14px] text-[#667085] mt-1">
-                    {activeCycle ? `Phase: ${activeCycle.phase} · ${formatDate(activeCycle.window_open)} → ${formatDate(activeCycle.window_close)}` : "Create a cycle to begin the performance review period."}
+                    {activeCycle ? `Current phase: ${activeCycle.phase || 'N/A'}` : "Create a cycle to begin the performance review period."}
                   </p>
                 </div>
                 {!activeCycle && (
@@ -196,16 +218,13 @@ export default function CycleManagement() {
               </div>
 
               {activeCycle && stages.length > 0 && (
-                <div className="mt-8">
-                  <div className="relative h-[6px] w-full rounded-full bg-[#E8ECEF]">
-                    <div className="absolute top-0 left-0 h-[6px] rounded-full bg-[#0C7A6E] w-[70%]" />
-                  </div>
-                  <div className="relative mt-[-10px] h-[80px]">
-                    <div className="left-0 absolute top-0"><StageMarker stage={stages[0]} position="left" /></div>
-                    <div className="absolute left-[33%] top-0"><StageMarker stage={stages[1]} position="center" /></div>
-                    <div className="absolute left-[66%] top-0"><StageMarker stage={stages[2]} position="center" /></div>
-                    <div className="absolute right-0 top-0"><StageMarker stage={stages[3]} position="right" /></div>
-                  </div>
+                <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {stages.map((stage, idx) => (
+                    <div key={idx} className="border border-[#DCE5E5] rounded-[10px] p-4 bg-white">
+                      <div className="text-[12px] text-[#667085]">{stage.label}</div>
+                      <div className="text-[14px] font-semibold text-[#1B1D1F] mt-1">{stage.sublabel}</div>
+                    </div>
+                  ))}
                 </div>
               )}
 
@@ -213,9 +232,9 @@ export default function CycleManagement() {
                 <div className="mt-8 pt-5 border-t border-[#DCE5E5] grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
                     { label: "Cycle Name", value: activeCycle.cycle_name },
-                    { label: "Phase", value: activeCycle.phase },
-                    { label: "Window Open", value: formatDate(activeCycle.window_open) },
-                    { label: "Window Close", value: formatDate(activeCycle.window_close) },
+                    { label: "Current Phase", value: activeCycle.phase || 'N/A' },
+                    { label: "Total Windows", value: (activeCycle.windows || []).length },
+                    { label: "Status", value: activeCycle.is_active ? 'Active' : 'Locked' },
                   ].map(item => (
                     <div key={item.label}>
                       <div className="text-[12px] text-[#667085] mb-1">{item.label}</div>
@@ -247,11 +266,17 @@ export default function CycleManagement() {
                         No past cycles. All historical cycles will appear here once they're deactivated.
                       </td></tr>
                     )}
-                    {pastCycles.map(cycle => (
+                    {pastCycles.map(cycle => {
+                      const windows = cycle.windows || [];
+                      const opens = windows.map((w) => new Date(w.window_open));
+                      const closes = windows.map((w) => new Date(w.window_close));
+                      const rangeOpen = opens.length ? new Date(Math.min(...opens)) : null;
+                      const rangeClose = closes.length ? new Date(Math.max(...closes)) : null;
+                      return (
                       <tr key={cycle.id} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="px-5 py-3 text-[13px] font-medium text-[#101828]">{cycle.cycle_name}</td>
-                        <td className="px-5 py-3 text-[13px] text-[#344054]">{cycle.phase}</td>
-                        <td className="px-5 py-3 text-[12px] text-[#667085]">{formatDate(cycle.window_open)} → {formatDate(cycle.window_close)}</td>
+                        <td className="px-5 py-3 text-[13px] text-[#344054]">{cycle.phase || 'N/A'}</td>
+                        <td className="px-5 py-3 text-[12px] text-[#667085]">{formatDate(rangeOpen)} → {formatDate(rangeClose)}</td>
                         <td className="px-5 py-3">
                           <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-0.5 rounded-[6px] bg-[#F2F4F7] text-[#344054]">
                             <span className="material-symbols-outlined text-[12px]">lock</span>
@@ -260,7 +285,7 @@ export default function CycleManagement() {
                         </td>
                         <td className="px-5 py-3 text-[12px] text-[#667085]">{formatDate(cycle.created_at)}</td>
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
@@ -272,7 +297,7 @@ export default function CycleManagement() {
       {/* Create Cycle Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-[16px] shadow-2xl w-full max-w-[480px] overflow-hidden">
+          <div className="bg-white rounded-[16px] shadow-2xl w-full max-w-[560px] overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-5 border-b border-[#F2F4F7] flex items-center justify-between">
               <div>
                 <h2 className="text-[17px] font-bold text-[#101828]">Start New Cycle</h2>
@@ -282,7 +307,7 @@ export default function CycleManagement() {
                 <span className="material-symbols-outlined text-[18px] text-[#667085]">close</span>
               </button>
             </div>
-            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4 overflow-y-auto">
               {saveError && (
                 <div className="text-[13px] text-[#B42318] bg-[#FEF3F2] border border-[#FECDCA] rounded-[8px] px-3 py-2">{saveError}</div>
               )}
@@ -292,25 +317,56 @@ export default function CycleManagement() {
                   className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63] focus:ring-1 focus:ring-[#006C63]"
                   placeholder="e.g. Q1 2026 Performance Review" />
               </div>
-              <div>
-                <label className="block text-[12px] font-semibold text-[#344054] mb-1.5">Phase *</label>
-                <select required value={form.phase} onChange={e => setForm(p => ({...p, phase: e.target.value}))}
-                  className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63]">
-                  <option value="">Select phase</option>
-                  {["Q1","Q2","Q3","Q4","H1","H2","Annual"].map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[12px] font-semibold text-[#344054] mb-1.5">Window Open *</label>
-                  <input required type="date" value={form.windowOpen} onChange={e => setForm(p => ({...p, windowOpen: e.target.value}))}
-                    className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63]" />
-                </div>
-                <div>
-                  <label className="block text-[12px] font-semibold text-[#344054] mb-1.5">Window Close *</label>
-                  <input required type="date" value={form.windowClose} onChange={e => setForm(p => ({...p, windowClose: e.target.value}))}
-                    className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63]" />
-                </div>
+              <div className="space-y-3">
+                {phaseLabels.map((phase) => (
+                  <div key={phase.key} className="border border-[#F2F4F7] rounded-[10px] p-3">
+                    <div className="text-[12px] font-semibold text-[#344054] mb-3">{phase.label}</div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[12px] font-semibold text-[#344054] mb-1.5">Window Open *</label>
+                        <input
+                          required
+                          type="date"
+                          value={form.windows[phase.key].windowOpen}
+                          onChange={(e) =>
+                            setForm((p) => ({
+                              ...p,
+                              windows: {
+                                ...p.windows,
+                                [phase.key]: {
+                                  ...p.windows[phase.key],
+                                  windowOpen: e.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[12px] font-semibold text-[#344054] mb-1.5">Window Close *</label>
+                        <input
+                          required
+                          type="date"
+                          value={form.windows[phase.key].windowClose}
+                          onChange={(e) =>
+                            setForm((p) => ({
+                              ...p,
+                              windows: {
+                                ...p.windows,
+                                [phase.key]: {
+                                  ...p.windows[phase.key],
+                                  windowClose: e.target.value,
+                                },
+                              },
+                            }))
+                          }
+                          className="w-full h-10 px-3 rounded-[8px] border border-[#D0D5DD] text-[13px] text-[#101828] focus:outline-none focus:border-[#006C63]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
               <label className="flex items-center gap-2 text-[13px] text-[#344054] cursor-pointer">
                 <input type="checkbox" checked={form.isActive} onChange={e => setForm(p => ({...p, isActive: e.target.checked}))}
