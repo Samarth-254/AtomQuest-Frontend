@@ -36,7 +36,7 @@ export default function TeamMembers() {
 
   // Inline Comment states
   const [commentingCheckinId, setCommentingCheckinId] = useState(null);
-  const [inlineCommentText, setInlineCommentText] = useState('');
+  const [commentDrafts, setCommentDrafts] = useState({});
   const [savingCommentId, setSavingCommentId] = useState(null);
 
   // Fetch Team Sheets
@@ -111,6 +111,8 @@ export default function TeamMembers() {
     setSelectedSheet(sheet);
     setActiveTab('goals');
     setSelectedCheckinPhase((prev) => prev || activeCheckinPhase || 'Q1');
+    setCommentingCheckinId(null);
+    setCommentDrafts({});
     if (!sheet.id) {
       setDrawerGoals([]);
       setDrawerCheckins([]);
@@ -132,20 +134,25 @@ export default function TeamMembers() {
   };
 
   const handleSaveInlineComment = async (checkin) => {
-    if (!inlineCommentText.trim()) return;
+    const draft = (commentDrafts[checkin.checkin_id] ?? '').trim();
+    if (!draft) return;
     if (savingCommentId === (checkin.checkin_id || checkin.id)) return;
     setSavingCommentId(checkin.checkin_id || checkin.id);
     try {
       await addCheckinComment({
         checkinId: checkin.checkin_id || checkin.id,
-        comment: inlineCommentText.trim()
+        comment: draft
       });
       toast.success('Comment updated successfully.');
       // Refresh checkins
       const checkinsRes = await getTeamCheckins(selectedSheet.id);
       setDrawerCheckins(checkinsRes.data || []);
       setCommentingCheckinId(null);
-      setInlineCommentText('');
+      setCommentDrafts((prev) => {
+        const next = { ...prev };
+        delete next[checkin.checkin_id];
+        return next;
+      });
     } catch (err) {
       toast.error('Failed to submit comment.');
     } finally {
@@ -528,8 +535,13 @@ export default function TeamMembers() {
                                   <div className="mt-2 space-y-2">
                                     <textarea
                                       rows={2}
-                                      value={inlineCommentText}
-                                      onChange={e => setInlineCommentText(e.target.value)}
+                                      value={commentDrafts[c.checkin_id] ?? c.manager_comment ?? ''}
+                                      onChange={(e) =>
+                                        setCommentDrafts((prev) => ({
+                                          ...prev,
+                                          [c.checkin_id]: e.target.value,
+                                        }))
+                                      }
                                       placeholder="Write your review or comment..."
                                       className="w-full px-3 py-2 border border-[#D0D5DD] rounded-[6px] text-[12.5px] focus:outline-none focus:border-[#006C63]"
                                     />
@@ -559,7 +571,10 @@ export default function TeamMembers() {
                                     onClick={() => {
                                       if (!canComment) return;
                                       setCommentingCheckinId(c.checkin_id);
-                                      setInlineCommentText(c.manager_comment || '');
+                                      setCommentDrafts((prev) => ({
+                                        ...prev,
+                                        [c.checkin_id]: c.manager_comment || ''
+                                      }));
                                     }}
                                     disabled={!canComment}
                                     className={`h-7 px-2.5 rounded-[6px] border border-[#D0D5DD] bg-white text-[11px] font-semibold text-[#344054] flex items-center gap-1 transition-colors ${

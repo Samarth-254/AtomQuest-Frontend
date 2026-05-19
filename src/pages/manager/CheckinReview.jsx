@@ -43,14 +43,20 @@ export default function CheckinReview() {
     };
   }, [loadCheckins]);
 
-  const handleTextareaChange = (checkinId, val) => {
+  const getCheckinKey = (item) => item.checkin_id ?? `${item.goal_id}-${item.cycle_phase}`;
+
+  const handleTextareaChange = (key, val) => {
     setDraftComments(prev => ({
       ...prev,
-      [checkinId]: val
+      [key]: val
     }));
   };
 
   const handleComment = async (checkinId, comment) => {
+    if (!checkinId) {
+      toast.error('Check-in record is missing for this goal.');
+      return;
+    }
     setSavingId(checkinId);
     try {
       await addCheckinComment({ checkinId, comment });
@@ -114,7 +120,25 @@ export default function CheckinReview() {
               <div className="text-[14px] text-[#b91c1c]">{error}</div>
             )}
 
-            {!loading && !error && items.map((item) => (
+            {!loading && !error && (() => {
+              const hasAnyCheckin = items.some((item) => item.checkin_id);
+              if (!hasAnyCheckin) {
+                return (
+                  <div className="bg-white border border-[#D9E3E4] rounded-[12px] p-5">
+                    <div className="text-[13px] text-[#b45309] bg-[#fff7ed] border border-[#fed7aa] rounded-[8px] px-3 py-3">
+                      No check-in record exists for this sheet yet. Comments will be available after the employee submits a check-in.
+                    </div>
+                  </div>
+                );
+              }
+
+              return items.map((item) => {
+              const draftKey = getCheckinKey(item);
+              const currentDraft = draftComments[draftKey];
+              const currentComment = item.manager_comment || "";
+              const canSave = item.checkin_id && currentDraft !== undefined && currentDraft !== currentComment;
+
+              return (
               <div
                 key={`${item.goal_id}-${item.cycle_phase}`}
                 className="bg-white border border-[#D9E3E4] rounded-[12px] p-5"
@@ -148,16 +172,16 @@ export default function CheckinReview() {
                   </label>
                   <textarea
                     rows="3"
-                    value={draftComments[item.checkin_id] !== undefined ? draftComments[item.checkin_id] : (item.manager_comment || "")}
-                    onChange={(e) => handleTextareaChange(item.checkin_id, e.target.value)}
+                    value={currentDraft !== undefined ? currentDraft : currentComment}
+                    onChange={(e) => handleTextareaChange(draftKey, e.target.value)}
                     className="w-full px-4 py-3 border border-[#D9E3E4] rounded-[8px] bg-white text-[14px] text-[#1B1D1F] focus:outline-none focus:border-[#006C63] focus:ring-1 focus:ring-[#006C63]"
                     placeholder="Add your feedback or comments..."
                   />
-                  {draftComments[item.checkin_id] !== undefined && draftComments[item.checkin_id] !== (item.manager_comment || "") && (
+                  {canSave && (
                     <div className="mt-2 flex justify-end">
                       <button
                         type="button"
-                        onClick={() => handleComment(item.checkin_id, draftComments[item.checkin_id])}
+                        onClick={() => handleComment(item.checkin_id, currentDraft)}
                         disabled={savingId === item.checkin_id}
                         className="px-4 py-1.5 rounded-[6px] bg-[#006C63] hover:bg-[#00564F] text-white text-[12px] font-semibold transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-1.5"
                       >
@@ -172,7 +196,8 @@ export default function CheckinReview() {
                   )}
                 </div>
               </div>
-            ))}
+            );});
+            })()}
           </div>
 
           <div className="col-span-12 xl:col-span-4 space-y-4">
